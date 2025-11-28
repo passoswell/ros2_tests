@@ -1,0 +1,2 @@
+add_subdirectory(minimal_publisher)
+add_subdirectory(minimal_subscriber)
