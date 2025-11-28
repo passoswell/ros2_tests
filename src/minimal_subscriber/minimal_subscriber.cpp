@@ -42,11 +42,11 @@ private:
 
 int main(int argc, char * argv[])
 {
-  const std::string g_node_name = "minimal_subscriber";
-  const std::string g_topic_name = "pubsub_topic";
+  const std::string node_name = "minimal_subscriber";
+  const std::string topic_name = "pubsub_topic";
 
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalSubscriber>(g_node_name, g_topic_name));
+  rclcpp::spin(std::make_shared<MinimalSubscriber>(node_name, topic_name));
   rclcpp::shutdown();
   return 0;
 }

@@ -56,12 +56,12 @@ private:
 
 int main(int argc, char * argv[])
 {
-  const std::string g_node_name = "minimal_publisher";
-  const std::string g_topic_name = "pubsub_topic";
+  const std::string node_name = "minimal_publisher";
+  const std::string topic_name = "pubsub_topic";
   std::chrono::milliseconds period = 500ms;
 
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalPublisher>(g_node_name, g_topic_name, period));
+  rclcpp::spin(std::make_shared<MinimalPublisher>(node_name, topic_name, period));
   rclcpp::shutdown();
   return 0;
 }
