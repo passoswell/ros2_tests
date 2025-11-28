@@ -1,3 +1,5 @@
 add_subdirectory(minimal_parameter)
 add_subdirectory(minimal_publisher)
+add_subdirectory(minimal_service_client)
+add_subdirectory(minimal_service_server)
 add_subdirectory(minimal_subscriber)
