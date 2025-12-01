@@ -21,26 +21,31 @@
 #include "std_msgs/msg/string.hpp"
 
 using namespace std::chrono_literals;
+using std::placeholders::_1;
 
 
 
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
 
-class MinimalPublisher : public rclcpp::Node
+class MinimalNode : public rclcpp::Node
 {
 public:
-  MinimalPublisher(const std::string &node_name, const std::string &topic_name,
-  std::chrono::milliseconds period)
+  MinimalNode(const std::string &node_name, const std::string &pub_topic_name,
+  const std::string &sub_topic_name, std::chrono::milliseconds period)
   : Node(node_name), count_(0)
   {
-    publisher_ = this->create_publisher<std_msgs::msg::String>(topic_name, 10);
+    publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, 10);
+
     timer_ = this->create_wall_timer(
-      period, std::bind(&MinimalPublisher::timer_callback, this));
+      period, std::bind(&MinimalNode::publisher_timer_callback, this));
+
+    subscription_ = this->create_subscription<std_msgs::msg::String>(
+      sub_topic_name, 10, std::bind(&MinimalNode::subscription_callback, this, _1));
   }
 
 private:
-  void timer_callback()
+  void publisher_timer_callback()
   {
     auto message = std_msgs::msg::String();
     message.data = "Hello, world! " + std::to_string(count_);
@@ -49,19 +54,26 @@ private:
     publisher_->publish(message);
   }
 
+  void subscription_callback(const std_msgs::msg::String & msg) const
+  {
+    RCLCPP_INFO(this->get_logger(), "I heard: '%s'", msg.data.c_str());
+  }
+
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
   size_t count_;
 };
 
 int main(int argc, char * argv[])
 {
-  const std::string node_name = "minimal_publisher";
-  const std::string topic_name = "pubsub_topic";
+  const std::string node_name = "minimal_publisher_and_subscriber";
+  const std::string pub_topic_name = "pub_topic";
+  const std::string sub_topic_name = "pubsub_topic";
   std::chrono::milliseconds period = 1000ms;
 
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalPublisher>(node_name, topic_name, period));
+  rclcpp::spin(std::make_shared<MinimalNode>(node_name, pub_topic_name, sub_topic_name, period));
   rclcpp::shutdown();
   return 0;
 }

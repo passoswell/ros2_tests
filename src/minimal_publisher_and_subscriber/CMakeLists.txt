@@ -1,0 +1,7 @@
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+
+add_executable(minimal_publisher_and_subscriber minimal_publisher_and_subscriber.cpp)
+ament_target_dependencies(minimal_publisher_and_subscriber rclcpp std_msgs)
+
+install(TARGETS minimal_publisher_and_subscriber DESTINATION lib/${PROJECT_NAME})
