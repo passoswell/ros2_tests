@@ -25,10 +25,10 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 
 
-// Wait idly for a start command through the service
+// Wait idly for a start true command through the service
 // Ping once every period if no pong was received
-// Ping every time a pong is received, try to keep a configurable message rate, wait for a pong or timeout
-// Stop after a number of messages defined in a parameter is received counting from the first pong
+// Ping every time a pong is received
+// Stop when a start false command is received through the service
 
 
 class PingPongNode : public rclcpp::Node

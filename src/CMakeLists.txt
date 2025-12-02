@@ -1,3 +1,4 @@
+add_subdirectory(latency_test_ping_pong)
 add_subdirectory(minimal_parameter)
 add_subdirectory(minimal_publisher)
 add_subdirectory(minimal_publisher_and_service_server)
