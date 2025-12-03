@@ -154,6 +154,12 @@ private:
       return;
     }
 
+    if(((pub_count_ % 100) == 0) && (pub_count_ != 0))
+    {
+      float percentage = static_cast<float>(pub_count_) / static_cast<float>(n_messages_);
+      RCLCPP_INFO(this->get_logger(), "%.2f%% done", 100 * percentage);
+    }
+
     publisher_->publish(message_);
     pub_count_++;
   }
@@ -195,7 +201,7 @@ private:
       {
         n_messages_ = 10;
       }
-      if(period > 0.0)
+      if(period >= 0.0)
       {
         period_ = period * 1ms;
       }
