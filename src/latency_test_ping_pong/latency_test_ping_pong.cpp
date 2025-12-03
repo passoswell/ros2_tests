@@ -18,6 +18,10 @@
 #include <string>
 #include <cstdint>
 #include <climits>
+#include <vector>
+#include <numeric> // For std::accumulate
+#include <algorithm> // For std::sort
+#include <cmath> // For sqrt() and pow()
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -40,7 +44,62 @@ using std::placeholders::_1;
 // Timeout value for delcaring a message as lost
 // Number of messages exchanged
 
+template<typename T>
+T computeMean(const std::vector<T>& data)
+{
+  if (data.empty())
+  {
+    return 0;
+  }
+  T sum = std::accumulate(data.begin(), data.end(), 0);
+  return sum / data.size();
+}
 
+template<typename T>
+T computeMedian(std::vector<T> data) // Pass by value to sort a copy
+{
+  if (data.empty())
+  {
+    return 0.0;
+  }
+  std::sort(data.begin(), data.end());
+  int size = data.size();
+  if (size % 2 != 0)
+  {
+    // Odd number of elements
+    return data[size / 2];
+  } else
+  {
+    // Even number of elements
+    return (data[(size - 1) / 2] + data[size / 2]) / 2.0;
+  }
+}
+
+template <typename T>
+double computeStandardDeviation(const std::vector<T>& data)
+{
+  if (data.empty())
+  {
+    return 0.0;
+  }
+
+  // Step 1: Calculate the mean
+  T sum = std::accumulate(data.begin(), data.end(), 0);
+  double mean = static_cast<double>(sum) / static_cast<double>(data.size());
+
+  // Step 2 & 3: Calculate the sum of squared differences from the mean
+  double sum_squared_diff = 0.0;
+  for (T value : data)
+  {
+    sum_squared_diff += std::pow(static_cast<double>(value) - mean, 2);
+  }
+
+  // Step 4: Calculate the variance
+  double variance = sum_squared_diff / data.size(); // Population standard deviation
+
+  // Step 5: Calculate the standard deviation
+  return std::sqrt(variance);
+}
 
 class PingPongNode : public rclcpp::Node
 {
@@ -95,6 +154,8 @@ private:
   uint32_t payload_size_;
 
   std_msgs::msg::String message_;
+  uint64_t timestamp_ping, timestamp_pong;
+  std::vector<uint64_t> timestamps_ping;
 
 
   // Timer callback used to publish messages
@@ -119,6 +180,7 @@ private:
       on_entry_ = false;
     }else
     {
+      // Timeout routine for detection of lost packets
       if(sub_count_ == last_sub_count_)
       {
         timeout_ticks --;
@@ -133,19 +195,29 @@ private:
         }
       }else
       {
+        timestamps_ping.emplace_back(timestamp_pong - timestamp_ping);
         last_sub_count_ = sub_count_;
         timeout_ticks = timeout_tick_limit_;
       }
     }
 
-    // Timeout routine for detection of lost packets
+    // End of test handling
     if(pub_count_ >= n_messages_)
     {
-      // End of test
       timer_->cancel();
       RCLCPP_INFO(this->get_logger(), "End of test:");
       RCLCPP_INFO(this->get_logger(), "Sent %d messages", pub_count_);
       RCLCPP_INFO(this->get_logger(), "Received %d messages", sub_count_);
+      RCLCPP_INFO(this->get_logger(), "Mean: %lu us", computeMean(timestamps_ping));
+      RCLCPP_INFO(this->get_logger(), "Median: %lu us", computeMedian(timestamps_ping));
+      RCLCPP_INFO(this->get_logger(), "std deviation: %lf us", computeStandardDeviation(timestamps_ping));
+      RCLCPP_INFO(this->get_logger(), "Min: %lu us", *(std::min_element(timestamps_ping.begin(), timestamps_ping.end())));
+      RCLCPP_INFO(this->get_logger(), "Max: %lu us", *(std::max_element(timestamps_ping.begin(), timestamps_ping.end())));
+
+      // for (uint64_t value : timestamps_ping)
+      // {
+      //   RCLCPP_INFO(this->get_logger(), "%lu ", value);
+      // }
       pub_count_ = 0;
       sub_count_ = 0;
       last_sub_count_ = sub_count_;
@@ -160,6 +232,8 @@ private:
       RCLCPP_INFO(this->get_logger(), "%.2f%% done", 100 * percentage);
     }
 
+    timestamp_ping = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     publisher_->publish(message_);
     pub_count_++;
   }
@@ -170,6 +244,8 @@ private:
     (void) msg;
     if(is_running_)
     {
+      timestamp_pong = std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::high_resolution_clock::now().time_since_epoch()).count();
       sub_count_++;
     }
   }
@@ -216,6 +292,8 @@ private:
       sub_count_ = 0;
       last_sub_count_ = sub_count_;
       message_.data = std::string(payload_size, 'A');
+      timestamps_ping.clear();
+      timestamps_ping.reserve(n_messages_);
       is_running_ = true;
       timer_ = this->create_wall_timer(
         1ms, std::bind(&PingPongNode::publisher_timer_callback, this));
