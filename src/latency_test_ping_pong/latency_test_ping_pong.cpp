@@ -17,6 +17,7 @@
 #include <memory>
 #include <string>
 #include <cstdint>
+#include <climits>
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -50,7 +51,8 @@ public:
   std::chrono::milliseconds period)
   : Node(node_name), period_(period),
   pub_count_(0), sub_count_(0), last_sub_count_(0),
-  on_entry_(true), is_running_(false), n_messages_(10), timeout_tick_limit_(1)
+  on_entry_(true), is_running_(false), n_messages_(10),
+  timeout_tick_limit_(1), timeout_ticks(1)
   {
     publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, 1);
 
@@ -59,6 +61,17 @@ public:
 
     service_ = this->create_service<std_srvs::srv::Trigger>(
       service_name, std::bind(&PingPongNode::start, this, std::placeholders::_1, std::placeholders::_2));
+
+    auto param_desc = rcl_interfaces::msg::ParameterDescriptor{};
+
+    param_desc.description = "Intended ping period in ms";
+    this->declare_parameter("ping_rate", 1000l, param_desc);
+
+    param_desc.description = "Timeout value for delcaring a message as lost in ms";
+    this->declare_parameter("pong_timeout", 2000l, param_desc);
+
+    param_desc.description = "Number of messages exchanged";
+    this->declare_parameter("n_messages", 10l, param_desc);
 
     RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Node is ready and waiting");
 
@@ -77,7 +90,7 @@ private:
   bool on_entry_;
   bool is_running_;
   uint32_t n_messages_;
-  uint8_t timeout_tick_limit_;
+  uint8_t timeout_tick_limit_, timeout_ticks;
 
 
   // Timer callback used to publish messages
@@ -88,13 +101,14 @@ private:
       on_entry_ = true;
       pub_count_ = 0;
       sub_count_ = 0;
-      last_sub_count_ = 0;
+      last_sub_count_ = sub_count_;
       timer_->cancel();
       return;
     }
 
     if(on_entry_)
     {
+      timeout_ticks = timeout_tick_limit_;
       timer_->cancel();
       timer_ = this->create_wall_timer(
         period_, std::bind(&PingPongNode::publisher_timer_callback, this));
@@ -103,16 +117,20 @@ private:
     {
       if(sub_count_ == last_sub_count_)
       {
-        timeout_tick_limit_ --;
-        if(timeout_tick_limit_ == 0)
+        timeout_ticks --;
+        if(timeout_ticks == 0)
         {
           last_sub_count_ = sub_count_;
-          timeout_tick_limit_ = 1;
+          timeout_ticks = timeout_tick_limit_;
           RCLCPP_INFO(this->get_logger(), "Response for %d timed out", pub_count_ - 1);
+        }else
+        {
+          return;
         }
       }else
       {
         last_sub_count_ = sub_count_;
+        timeout_ticks = timeout_tick_limit_;
       }
     }
 
@@ -126,7 +144,7 @@ private:
       RCLCPP_INFO(this->get_logger(), "Received %d messages", sub_count_);
       pub_count_ = 0;
       sub_count_ = 0;
-      last_sub_count_ = 0;
+      last_sub_count_ = sub_count_;
       on_entry_ = true;
       is_running_ = false;
       return;
@@ -159,10 +177,28 @@ private:
       response->success = true;
       response->message = "A service request has arrived, starting execution";
       RCLCPP_INFO(this->get_logger(), "A service request has arrived, starting execution");
-      timeout_tick_limit_ = 1;
+      int64_t period = this->get_parameter("ping_rate").as_int();
+      int64_t timeout = this->get_parameter("pong_timeout").as_int();
+      int64_t n_messages = this->get_parameter("n_messages").as_int();
+      timeout_tick_limit_ = timeout/period;
+      if(timeout_tick_limit_ <= 1)
+      {
+        timeout_tick_limit_ = 2;
+      }
+      if(n_messages > 0 && n_messages < INT_MAX)
+      {
+        n_messages_ = static_cast<uint32_t>(n_messages);
+      }else
+      {
+        n_messages_ = 10;
+      }
+      if(period > 0.0)
+      {
+        period_ = period * 1ms;
+      }
       pub_count_ = 0;
       sub_count_ = 0;
-      last_sub_count_ = -1;
+      last_sub_count_ = sub_count_;
       is_running_ = true;
       timer_ = this->create_wall_timer(
         1ms, std::bind(&PingPongNode::publisher_timer_callback, this));
