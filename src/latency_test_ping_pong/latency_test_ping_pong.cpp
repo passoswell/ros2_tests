@@ -113,10 +113,15 @@ public:
   on_entry_(true), is_running_(false), n_messages_(10),
   timeout_tick_limit_(1), timeout_ticks(1), payload_size_(10)
   {
-    publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, 1);
+    // Create a QoS profile with specific settings
+    rclcpp::QoS qos_profile(1); // History depth of 1
+    qos_profile.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT); // Best effort reliability
+    qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE); // Volatile durability
+
+    publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, qos_profile);
 
     subscription_ = this->create_subscription<std_msgs::msg::String>(
-      sub_topic_name, 10, std::bind(&PingPongNode::subscription_callback, this, _1));
+      sub_topic_name, qos_profile, std::bind(&PingPongNode::subscription_callback, this, _1));
 
     service_ = this->create_service<std_srvs::srv::Trigger>(
       service_name, std::bind(&PingPongNode::start, this, std::placeholders::_1, std::placeholders::_2));
@@ -154,7 +159,7 @@ private:
   uint32_t payload_size_;
 
   std_msgs::msg::String message_;
-  uint64_t timestamp_ping, timestamp_pong;
+  uint64_t timestamp_ping, timestamp_pong, n_messages_threshold;
   std::vector<uint64_t> timestamps_ping;
 
 
@@ -226,16 +231,16 @@ private:
       return;
     }
 
-    if(((pub_count_ % 100) == 0) && (pub_count_ != 0))
-    {
-      float percentage = static_cast<float>(pub_count_) / static_cast<float>(n_messages_);
-      RCLCPP_INFO(this->get_logger(), "%.2f%% done", 100 * percentage);
-    }
-
     timestamp_ping = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     publisher_->publish(message_);
     pub_count_++;
+
+    if(((pub_count_ % n_messages_threshold) == 0) && (pub_count_ != 0))
+    {
+      float percentage = static_cast<float>(pub_count_) / static_cast<float>(n_messages_);
+      RCLCPP_INFO(this->get_logger(), "%.2f%% done", 100 * percentage);
+    }
   }
 
   // Subscription callback to receive the pong messages
@@ -291,6 +296,7 @@ private:
       pub_count_ = 0;
       sub_count_ = 0;
       last_sub_count_ = sub_count_;
+      n_messages_threshold = 5000 / period_.count();
       message_.data = std::string(payload_size, 'A');
       timestamps_ping.clear();
       timestamps_ping.reserve(n_messages_);
