@@ -113,15 +113,18 @@ public:
   on_entry_(true), is_running_(false), n_messages_(10),
   timeout_tick_limit_(1), timeout_ticks(1), payload_size_(10)
   {
-    // Create a QoS profile with specific settings
-    rclcpp::QoS qos_profile(1); // History depth of 1
-    qos_profile.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT); // Best effort reliability
-    qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE); // Volatile durability
+    // // Create a QoS profile with specific settings
+    // rclcpp::QoS qos_profile(1); // History depth of 1
+    // qos_profile.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT); // Best effort reliability
+    // qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE); // Volatile durability
 
-    publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, qos_profile);
+    // publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, qos_profile);
+    publisher_ = this->create_publisher<std_msgs::msg::String>(pub_topic_name, 1);
 
+    // subscription_ = this->create_subscription<std_msgs::msg::String>(
+    //   sub_topic_name, qos_profile, std::bind(&PingPongNode::subscription_callback, this, _1));
     subscription_ = this->create_subscription<std_msgs::msg::String>(
-      sub_topic_name, qos_profile, std::bind(&PingPongNode::subscription_callback, this, _1));
+      sub_topic_name, 1, std::bind(&PingPongNode::subscription_callback, this, _1));
 
     service_ = this->create_service<std_srvs::srv::Trigger>(
       service_name, std::bind(&PingPongNode::start, this, std::placeholders::_1, std::placeholders::_2));
@@ -193,7 +196,7 @@ private:
         {
           last_sub_count_ = sub_count_;
           timeout_ticks = timeout_tick_limit_;
-          RCLCPP_INFO(this->get_logger(), "Response for %d timed out", pub_count_ - 1);
+          // RCLCPP_INFO(this->get_logger(), "Response for %d timed out", pub_count_ - 1);
         }else
         {
           return;
@@ -253,6 +256,7 @@ private:
                       std::chrono::high_resolution_clock::now().time_since_epoch()).count();
       sub_count_++;
     }
+    // RCLCPP_INFO(this->get_logger(), "Received %ld bytes", msg.data.length());
   }
 
   // Service callback to start one round of latency test
